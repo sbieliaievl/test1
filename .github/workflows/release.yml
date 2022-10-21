@@ -1,0 +1,97 @@
+name: release
+
+on:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - CHANGELOG.md
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Check bump labels
+        id: check
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        run: ./scripts/bump.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v1
+        if: "!steps.check.outputs.skip"
+        with:
+          node-version: 15.x
+
+      - name: Configure git user
+        if: "!steps.check.outputs.skip"
+        run: |
+          git config user.name build-talend-cloud
+          git config user.email build-talend-cloud@talend.com
+          git config user.password ${{ secrets.PUSH_TOKEN }}
+
+      # Workaround for GH issues with commit on protected branches from actions
+      # See https://github.community/t/how-to-push-to-protected-branches-in-a-github-action/16101/30
+      - name: Disable branch protection
+        if: "!steps.check.outputs.skip"
+        uses: octokit/request-action@v2.x
+        with:
+          route: PUT /repos/:repository/branches/master/protection
+          repository: ${{ github.repository }}
+          required_status_checks: |
+            null
+          enforce_admins: |
+            null
+          required_pull_request_reviews: |
+            null
+          restrictions: |
+            null
+        env:
+          GITHUB_TOKEN: ${{ secrets.PUSH_TOKEN }}
+
+      - name: Run release-it in auto mode
+        if: "!steps.check.outputs.skip && steps.check.outputs.increment == 'auto'"
+        run: |
+          npm install -g @release-it/conventional-changelog
+          npx release-it --ci
+        env:
+          GITHUB_TOKEN: ${{ secrets.PUSH_TOKEN }}
+
+      - name: Run release-it with specific increment version
+        if: "!steps.check.outputs.skip && steps.check.outputs.increment != 'auto'"
+        run: |
+          npm install -g @release-it/conventional-changelog
+          npx release-it --ci --increment "${INCREMENT}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.PUSH_TOKEN }}
+          INCREMENT: ${{ steps.check.outputs.increment }}
+
+      # Workaround for GH issues with commit on protected branches from actions
+      # See https://github.community/t/how-to-push-to-protected-branches-in-a-github-action/16101/30
+      - name: Enable branch protection
+        uses: octokit/request-action@v2.x
+        with:
+          route: PUT /repos/:repository/branches/master/protection
+          repository: ${{ github.repository }}
+          mediaType: |
+            previews:
+              - luke-cage
+          required_status_checks: |
+            strict: true
+            contexts: []
+          enforce_admins: |
+            null
+          required_pull_request_reviews: |
+            dismiss_stale_reviews: false
+            require_code_owner_reviews: true
+            required_approving_review_count: 1
+          restrictions: |
+            null
+        env:
+          GITHUB_TOKEN: ${{ secrets.PUSH_TOKEN }}
