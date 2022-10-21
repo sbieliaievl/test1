@@ -1,0 +1,22 @@
+.idea/
+.vscode/
+inventory
+.fact
+venv/
+.venv
+*.backup
+/**/external
+.mypy_cache/
+__pycache__
+ansible/collections
+
+# Direnv conf file & working folder
+.direnv/
+.envrc
+
+# Terraform
+.terraform/
+.terraform.tfstate.lock.info
+*.tfstate
+*.tfstate.backup
+*.lock.hcl
